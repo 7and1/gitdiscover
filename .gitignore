@@ -20,3 +20,8 @@ wrangler.toml
 
 # Git
 .git/
+
+# Lock files (use npm ci in CI/CD)
+package-lock.json
+pnpm-lock.yaml
+yarn.lock
