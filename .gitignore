@@ -1,0 +1,22 @@
+node_modules/
+dist/
+.next/
+.turbo/
+.cache/
+
+.env
+.env.*
+.dev.vars
+
+*.log
+
+.DS_Store
+
+docker/data/
+
+# Cloudflare
+wrangler.toml
+.wrangler/
+
+# Git
+.git/

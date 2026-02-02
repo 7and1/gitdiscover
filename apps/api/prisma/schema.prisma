@@ -1,0 +1,333 @@
+generator client {
+  provider        = "prisma-client-js"
+  binaryTargets   = ["native", "debian-openssl-3.0.x"]
+  previewFeatures = ["fullTextSearch", "fullTextIndex"]
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ============================================
+// CORE ENTITIES
+// ============================================
+
+model Repository {
+  id            Int     @id @default(autoincrement())
+  githubId      BigInt  @unique @map("github_id")
+  fullName      String  @unique @map("full_name") @db.VarChar(255)
+  name          String  @db.VarChar(255)
+  description   String? @db.Text
+  language      String? @db.VarChar(50)
+
+  // Metrics
+  stars         Int @default(0)
+  forks         Int @default(0)
+  watchers      Int @default(0)
+  openIssues    Int @default(0) @map("open_issues")
+  size          Int @default(0)
+
+  // Calculated scores
+  score         Float @default(0)
+  starsGrowth24h Int  @default(0) @map("stars_growth_24h")
+  forksGrowth24h Int  @default(0) @map("forks_growth_24h")
+
+  // Metadata
+  homepage      String?  @db.VarChar(500)
+  topics        String[] @default([])
+  license       String?  @db.VarChar(100)
+  hasReadme     Boolean  @default(false) @map("has_readme")
+  hasLicense    Boolean  @default(false) @map("has_license")
+  isArchived    Boolean  @default(false) @map("is_archived")
+  isFork        Boolean  @default(false) @map("is_fork")
+
+  // Owner reference
+  ownerId       Int?       @map("owner_id")
+  owner         Developer? @relation(fields: [ownerId], references: [id])
+
+  // Timestamps
+  pushedAt      DateTime? @map("pushed_at")
+  repoCreatedAt DateTime? @map("repo_created_at")
+  createdAt     DateTime  @default(now()) @map("created_at")
+  updatedAt     DateTime  @updatedAt @map("updated_at")
+
+  // Relations
+  snapshots     RepositorySnapshot[]
+  analyses      AiAnalysis[]
+  bookmarks     Bookmark[]
+  comments      Comment[]
+  votes         Vote[]
+
+  @@index([fullName])
+  @@index([pushedAt])
+  @@index([language])
+  @@index([score(sort: Desc)])
+  @@index([stars(sort: Desc)])
+  @@index([starsGrowth24h(sort: Desc)])
+  @@index([updatedAt])
+  @@index([language, score(sort: Desc)])
+  @@map("repositories")
+}
+
+model Developer {
+  id              Int    @id @default(autoincrement())
+  githubId         BigInt @unique @map("github_id")
+  login            String @unique @db.VarChar(100)
+  name             String? @db.VarChar(255)
+  avatarUrl        String? @map("avatar_url") @db.VarChar(500)
+  bio              String? @db.Text
+  company          String? @db.VarChar(255)
+  location         String? @db.VarChar(255)
+  blog             String? @db.VarChar(500)
+  email            String? @db.VarChar(255)
+  twitterUsername  String? @map("twitter_username") @db.VarChar(100)
+
+  // Metrics
+  followers        Int @default(0)
+  following        Int @default(0)
+  publicRepos      Int @default(0) @map("public_repos")
+  publicGists      Int @default(0) @map("public_gists")
+
+  // Calculated scores
+  impactScore      Float @default(0) @map("impact_score")
+  activeRepos      Int   @default(0) @map("active_repos")
+  totalStars       Int   @default(0) @map("total_stars")
+  contributions    Int   @default(0)
+
+  // Timestamps
+  devCreatedAt     DateTime? @map("dev_created_at")
+  createdAt        DateTime  @default(now()) @map("created_at")
+  updatedAt        DateTime  @updatedAt @map("updated_at")
+
+  // Relations
+  repositories     Repository[]
+  snapshots        DeveloperSnapshot[]
+
+  @@index([impactScore(sort: Desc)])
+  @@index([followers(sort: Desc)])
+  @@index([totalStars(sort: Desc)])
+  @@map("developers")
+}
+
+model User {
+  id          Int    @id @default(autoincrement())
+  githubId     BigInt @unique @map("github_id")
+  login        String @unique @db.VarChar(100)
+  email        String? @db.VarChar(255)
+  name         String? @db.VarChar(255)
+  avatarUrl    String? @map("avatar_url") @db.VarChar(500)
+
+  // Auth
+  role         Role   @default(USER)
+  accessToken  String? @map("access_token") @db.VarChar(500)
+
+  // Activity
+  lastLoginAt  DateTime? @map("last_login_at")
+  createdAt    DateTime  @default(now()) @map("created_at")
+  updatedAt    DateTime  @updatedAt @map("updated_at")
+
+  // Relations
+  bookmarks    Bookmark[]
+  comments     Comment[]
+  votes        Vote[]
+
+  @@map("users")
+}
+
+enum Role {
+  USER
+  MODERATOR
+  ADMIN
+}
+
+// ============================================
+// TIME-SERIES DATA
+// ============================================
+
+model RepositorySnapshot {
+  id            BigInt   @id @default(autoincrement())
+  repositoryId  Int      @map("repository_id")
+  snapshotDate  DateTime @map("snapshot_date") @db.Date
+
+  // Metrics at snapshot time
+  stars         Int
+  forks         Int
+  watchers      Int
+  openIssues    Int      @map("open_issues")
+
+  // Growth metrics
+  starsGrowth   Int      @default(0) @map("stars_growth")
+  forksGrowth   Int      @default(0) @map("forks_growth")
+
+  // Calculated score at snapshot
+  score         Float    @default(0)
+  rank          Int?
+
+  createdAt     DateTime @default(now()) @map("created_at")
+
+  repository    Repository @relation(fields: [repositoryId], references: [id], onDelete: Cascade)
+
+  @@unique([repositoryId, snapshotDate])
+  @@index([repositoryId, snapshotDate])
+  @@index([snapshotDate])
+  @@index([snapshotDate, score(sort: Desc)])
+  @@index([snapshotDate, rank])
+  @@map("repository_snapshots")
+}
+
+model DeveloperSnapshot {
+  id            BigInt   @id @default(autoincrement())
+  developerId   Int      @map("developer_id")
+  snapshotDate  DateTime @map("snapshot_date") @db.Date
+
+  // Metrics at snapshot time
+  followers     Int
+  publicRepos   Int      @map("public_repos")
+  totalStars    Int      @map("total_stars")
+
+  // Calculated score at snapshot
+  impactScore   Float    @default(0) @map("impact_score")
+  rank          Int?
+
+  createdAt     DateTime @default(now()) @map("created_at")
+
+  developer     Developer @relation(fields: [developerId], references: [id], onDelete: Cascade)
+
+  @@unique([developerId, snapshotDate])
+  @@index([snapshotDate])
+  @@index([snapshotDate, impactScore(sort: Desc)])
+  @@map("developer_snapshots")
+}
+
+// ============================================
+// AI ANALYSIS
+// ============================================
+
+model AiAnalysis {
+  id             Int      @id @default(autoincrement())
+  repositoryId   Int      @map("repository_id")
+  analysisDate   DateTime @map("analysis_date") @db.Date
+
+  // Analysis content
+  summary        String   @db.Text
+  highlights     String[] @default([])
+  useCases       String[] @default([]) @map("use_cases")
+  techStack      Json?    @map("tech_stack")
+  codeQuality    Json?    @map("code_quality")
+
+  // Recommendations
+  similarRepos   Int[]    @default([]) @map("similar_repos")
+  targetAudience String?  @map("target_audience") @db.VarChar(500)
+
+  // Metadata
+  modelVersion   String   @map("model_version") @db.VarChar(50)
+  tokensUsed     Int      @default(0) @map("tokens_used")
+
+  createdAt      DateTime @default(now()) @map("created_at")
+
+  repository     Repository @relation(fields: [repositoryId], references: [id], onDelete: Cascade)
+
+  @@unique([repositoryId, analysisDate])
+  @@index([analysisDate])
+  @@map("ai_analyses")
+}
+
+// ============================================
+// COMMUNITY FEATURES
+// ============================================
+
+model Bookmark {
+  id            Int      @id @default(autoincrement())
+  userId        Int      @map("user_id")
+  repositoryId  Int      @map("repository_id")
+
+  note          String?  @db.Text
+  tags          String[] @default([])
+
+  createdAt     DateTime @default(now()) @map("created_at")
+
+  user          User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  repository    Repository @relation(fields: [repositoryId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, repositoryId])
+  @@index([userId, createdAt])
+  @@index([userId])
+  @@index([repositoryId])
+  @@map("bookmarks")
+}
+
+model Comment {
+  id            Int      @id @default(autoincrement())
+  userId        Int      @map("user_id")
+  repositoryId  Int      @map("repository_id")
+  parentId      Int?     @map("parent_id")
+
+  content       String   @db.Text
+  isEdited      Boolean  @default(false) @map("is_edited")
+  isDeleted     Boolean  @default(false) @map("is_deleted")
+
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
+
+  user          User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  repository    Repository @relation(fields: [repositoryId], references: [id], onDelete: Cascade)
+  parent        Comment?   @relation("CommentReplies", fields: [parentId], references: [id])
+  replies       Comment[]  @relation("CommentReplies")
+
+  @@index([repositoryId, createdAt(sort: Desc)])
+  @@index([userId])
+  @@map("comments")
+}
+
+model Vote {
+  id            Int      @id @default(autoincrement())
+  userId        Int      @map("user_id")
+  repositoryId  Int      @map("repository_id")
+
+  value         Int      // 1 for upvote, -1 for downvote
+
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
+
+  user          User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  repository    Repository @relation(fields: [repositoryId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, repositoryId])
+  @@index([repositoryId])
+  @@map("votes")
+}
+
+// ============================================
+// SYSTEM TABLES
+// ============================================
+
+model SyncLog {
+  id               Int      @id @default(autoincrement())
+  syncType          String   @map("sync_type") @db.VarChar(50)
+  status            String   @db.VarChar(20)
+
+  recordsProcessed  Int      @default(0) @map("records_processed")
+  recordsFailed     Int      @default(0) @map("records_failed")
+
+  startedAt         DateTime @map("started_at")
+  completedAt       DateTime? @map("completed_at")
+
+  errorMessage      String?  @map("error_message") @db.Text
+  metadata          Json?
+
+  @@index([syncType, startedAt(sort: Desc)])
+  @@map("sync_logs")
+}
+
+model CacheInvalidation {
+  id            Int      @id @default(autoincrement())
+  cacheKey      String   @map("cache_key") @db.VarChar(255)
+  reason        String   @db.VarChar(100)
+
+  invalidatedAt DateTime @default(now()) @map("invalidated_at")
+
+  @@index([invalidatedAt])
+  @@map("cache_invalidations")
+}
+

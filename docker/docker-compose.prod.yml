@@ -1,0 +1,164 @@
+services:
+  api:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.api
+    image: gitdiscover/api:latest
+    container_name: gitdiscover-api
+    environment:
+      NODE_ENV: production
+      HOST: 0.0.0.0
+      PORT: 3001
+      JWT_SECRET: ${JWT_SECRET}
+      APP_URL: ${NEXT_PUBLIC_APP_URL:-https://gitdiscover.org}
+      API_BASE_URL: ${API_BASE_URL:-http://api:3001}
+      DATABASE_URL: ${DATABASE_URL}
+      REDIS_URL: ${REDIS_URL}
+      GITHUB_CLIENT_ID: ${GITHUB_CLIENT_ID}
+      GITHUB_CLIENT_SECRET: ${GITHUB_CLIENT_SECRET}
+      SENTRY_DSN: ${SENTRY_DSN:-}
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 1G
+        reservations:
+          cpus: '0.25'
+          memory: 256M
+      restart_policy:
+        condition: any
+        delay: 5s
+        max_attempts: 3
+        window: 120s
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:3001/api/health || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "100m"
+        max-file: "3"
+        labels: "service"
+    networks:
+      - proxy-tier
+      - supabase-tier
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.gitdiscover-api.rule=Host(`api.gitdiscover.org`)"
+      - "traefik.http.routers.gitdiscover-api.entrypoints=websecure"
+      - "traefik.http.routers.gitdiscover-api.tls.certresolver=letsencrypt"
+      - "traefik.http.services.gitdiscover-api.loadbalancer.server.port=3001"
+      - "traefik.http.services.gitdiscover-api.loadbalancer.healthcheck.path=/api/health"
+      - "traefik.http.services.gitdiscover-api.loadbalancer.healthcheck.interval=30s"
+
+  web:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.web
+    image: gitdiscover/web:latest
+    container_name: gitdiscover-web
+    environment:
+      NODE_ENV: production
+      PORT: 3002
+      HOST: 0.0.0.0
+      NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-https://api.gitdiscover.org}
+      NEXT_PUBLIC_APP_URL: ${NEXT_PUBLIC_APP_URL:-https://gitdiscover.org}
+      API_BASE_URL: ${API_BASE_URL:-http://api:3001}
+      SENTRY_DSN: ${SENTRY_DSN:-}
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 512M
+        reservations:
+          cpus: '0.25'
+          memory: 128M
+      restart_policy:
+        condition: any
+        delay: 5s
+        max_attempts: 3
+        window: 120s
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:3002/api/health || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "100m"
+        max-file: "3"
+        labels: "service"
+    networks:
+      - proxy-tier
+      - default
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.gitdiscover-web.rule=Host(`gitdiscover.org`) || Host(`www.gitdiscover.org`)"
+      - "traefik.http.routers.gitdiscover-web.entrypoints=websecure"
+      - "traefik.http.routers.gitdiscover-web.tls.certresolver=letsencrypt"
+      - "traefik.http.services.gitdiscover-web.loadbalancer.server.port=3002"
+      - "traefik.http.services.gitdiscover-web.loadbalancer.healthcheck.path=/api/health"
+      - "traefik.http.services.gitdiscover-web.loadbalancer.healthcheck.interval=30s"
+
+  collector:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.collector
+    image: gitdiscover/collector:latest
+    container_name: gitdiscover-collector
+    environment:
+      NODE_ENV: production
+      DATABASE_URL: ${DATABASE_URL}
+      REDIS_URL: ${REDIS_URL}
+      GITHUB_TOKEN: ${GITHUB_TOKEN}
+      OPENAI_API_KEY: ${OPENAI_API_KEY}
+      API_BASE_URL: ${API_BASE_URL:-http://api:3001}
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+      SENTRY_DSN: ${SENTRY_DSN:-}
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 512M
+        reservations:
+          cpus: '0.1'
+          memory: 128M
+      restart_policy:
+        condition: any
+        delay: 10s
+        max_attempts: 3
+        window: 120s
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:3003/health || exit 1"]
+      interval: 60s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "100m"
+        max-file: "3"
+        labels: "service"
+    networks:
+      - supabase-tier
+      - default
+    depends_on:
+      api:
+        condition: service_healthy
+
+networks:
+  proxy-tier:
+    external: true
+    name: nginx-proxy_default
+  supabase-tier:
+    external: true
+    name: supabase_default
+  default:
+    driver: bridge

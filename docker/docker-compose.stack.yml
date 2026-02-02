@@ -1,0 +1,120 @@
+services:
+  postgres:
+    image: postgres:16
+    container_name: gitdiscover-postgres
+    environment:
+      POSTGRES_USER: gitdiscover
+      POSTGRES_PASSWORD: gitdiscover
+      POSTGRES_DB: gitdiscover
+    ports:
+      - "55434:5432"
+    volumes:
+      - ./data/postgres:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U gitdiscover -d gitdiscover"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  redis:
+    image: redis:7
+    container_name: gitdiscover-redis
+    command: ["redis-server", "--appendonly", "yes"]
+    ports:
+      - "6381:6379"
+    volumes:
+      - ./data/redis:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  api:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.api
+    container_name: gitdiscover-api
+    environment:
+      NODE_ENV: production
+      HOST: 0.0.0.0
+      PORT: 3001
+      JWT_SECRET: ${JWT_SECRET:?set in .env}
+      COOKIE_SECRET: ${COOKIE_SECRET:?set in .env}
+      APP_URL: ${NEXT_PUBLIC_APP_URL:-http://localhost:3002}
+      API_BASE_URL: ${API_BASE_URL:-http://localhost:3001}
+      DATABASE_URL: postgresql://gitdiscover:gitdiscover@postgres:5432/gitdiscover
+      REDIS_URL: redis://redis:6379
+      GITHUB_CLIENT_ID: ${GITHUB_CLIENT_ID:-}
+      GITHUB_CLIENT_SECRET: ${GITHUB_CLIENT_SECRET:-}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    ports:
+      - "3006:3001"
+    restart: unless-stopped
+
+  collector:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.collector
+    container_name: gitdiscover-collector
+    environment:
+      NODE_ENV: production
+      DATABASE_URL: postgresql://gitdiscover:gitdiscover@postgres:5432/gitdiscover
+      GITHUB_TOKEN: ${GITHUB_TOKEN:-}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      API_BASE_URL: http://api:3001
+      LOG_LEVEL: info
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      api:
+        condition: service_started
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:3003/health || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    ports:
+      - "3008:3003"
+
+  web:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.web
+    container_name: gitdiscover-web
+    environment:
+      NODE_ENV: production
+      PORT: 3002
+      HOST: 0.0.0.0
+      NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://api:3001}
+      NEXT_PUBLIC_APP_URL: ${NEXT_PUBLIC_APP_URL:-https://gitdiscover.org}
+      API_BASE_URL: ${API_BASE_URL:-http://api:3001}
+    depends_on:
+      api:
+        condition: service_started
+    restart: unless-stopped
+    expose:
+      - "3002"
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.gitdiscover-web.rule=Host(`gitdiscover.org`) || Host(`www.gitdiscover.org`)"
+      - "traefik.http.routers.gitdiscover-web.entrypoints=websecure"
+      - "traefik.http.routers.gitdiscover-web.tls.certresolver=letsencrypt"
+      - "traefik.http.services.gitdiscover-web.loadbalancer.server.port=3002"
+    networks:
+      - proxy-tier
+      - default
+
+networks:
+  proxy-tier:
+    external: true
+    name: nginx-proxy_default
+

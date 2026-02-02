@@ -1,0 +1,31 @@
+services:
+  postgres:
+    image: postgres:16
+    container_name: gitdiscover-postgres
+    environment:
+      POSTGRES_USER: gitdiscover
+      POSTGRES_PASSWORD: gitdiscover
+      POSTGRES_DB: gitdiscover
+    ports:
+      - "55433:5432"
+    volumes:
+      - ./data/postgres:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U gitdiscover -d gitdiscover"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  redis:
+    image: redis:7
+    container_name: gitdiscover-redis
+    command: ["redis-server", "--appendonly", "yes"]
+    ports:
+      - "6380:6379"
+    volumes:
+      - ./data/redis:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
