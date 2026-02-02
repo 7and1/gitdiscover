@@ -32,9 +32,10 @@
     "@prisma/client": "^5.18.0"
   },
   "devDependencies": {
+    "@cloudflare/next-on-pages": "1.13.16",
+    "@types/node": "^20.11.30",
     "@typescript-eslint/eslint-plugin": "^7.18.0",
     "@typescript-eslint/parser": "^7.18.0",
-    "@types/node": "^20.11.30",
     "concurrently": "^9.1.0",
     "eslint": "^8.57.1",
     "eslint-config-prettier": "^9.1.0",

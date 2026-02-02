@@ -5,7 +5,7 @@ const ContentSecurityPolicy = `
   style-src 'self' 'unsafe-inline';
   img-src 'self' data: https://avatars.githubusercontent.com https://opengraph.githubassets.com;
   font-src 'self' data:;
-  connect-src 'self' https://api.gitdiscover.dev http://localhost:3001;
+  connect-src 'self' https://api.gitdiscover.org https://api.gitdiscover.dev http://localhost:3001;
   frame-ancestors 'none';
 `;
 
