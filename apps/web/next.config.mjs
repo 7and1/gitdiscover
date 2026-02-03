@@ -1,8 +1,11 @@
-import { setupDevPlatform } from "@cloudflare/next-on-pages/next-dev";
-
-// Setup dev platform for local development
+// Setup dev platform for local development (only when wrangler is available)
 if (process.env.NODE_ENV === "development") {
-  await setupDevPlatform();
+  try {
+    const { setupDevPlatform } = await import("@cloudflare/next-on-pages/next-dev");
+    await setupDevPlatform();
+  } catch {
+    // Wrangler not available, skip setup
+  }
 }
 
 /** @type {import('next').NextConfig} */
