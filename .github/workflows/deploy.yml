@@ -1,15 +1,17 @@
 name: Deploy to Cloudflare Pages
 
+# Disabled: This app uses SSR with Node.js runtime features (local fonts, server components)
+# that are incompatible with Cloudflare Pages Edge Runtime.
+# The app is deployed on VPS at https://gitdiscover.org instead.
+
 on:
-  push:
-    branches:
-      - main
-  workflow_dispatch:
+  workflow_dispatch:  # Manual trigger only
 
 jobs:
   deploy:
     runs-on: ubuntu-latest
     name: Deploy to Cloudflare Pages
+    if: false  # Disabled
 
     steps:
       - name: Checkout code
