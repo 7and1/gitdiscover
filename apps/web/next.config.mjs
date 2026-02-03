@@ -1,11 +1,11 @@
 /** @type {import('next').NextConfig} */
 const ContentSecurityPolicy = `
   default-src 'self';
-  script-src 'self' 'unsafe-inline' 'unsafe-eval';
+  script-src 'self' 'unsafe-inline' 'unsafe-eval' https://static.cloudflareinsights.com;
   style-src 'self' 'unsafe-inline';
   img-src 'self' data: https://avatars.githubusercontent.com https://opengraph.githubassets.com;
   font-src 'self' data:;
-  connect-src 'self' https://api.gitdiscover.org https://api.gitdiscover.dev http://localhost:3001;
+  connect-src 'self' https://api.gitdiscover.org https://api.gitdiscover.dev http://localhost:3001 https://cloudflareinsights.com;
   frame-ancestors 'none';
 `;
 

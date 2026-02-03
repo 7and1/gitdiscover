@@ -94,7 +94,7 @@ services:
       NODE_ENV: production
       PORT: 3002
       HOST: 0.0.0.0
-      NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://api:3001}
+      NEXT_PUBLIC_API_BASE_URL: ${NEXT_PUBLIC_API_BASE_URL:-http://api:3001/v1}
       NEXT_PUBLIC_APP_URL: ${NEXT_PUBLIC_APP_URL:-https://gitdiscover.org}
       API_BASE_URL: ${API_BASE_URL:-http://api:3001}
     depends_on:
