@@ -28,7 +28,13 @@ jobs:
           npm run prisma:generate
           npm run build -w @gitdiscover/shared
           npm run build -w @gitdiscover/web
-          rm -rf apps/web/.next/cache
+        env:
+          NEXT_PUBLIC_APP_URL: https://gitdiscover.org
+          NEXT_PUBLIC_API_URL: https://api.gitdiscover.org
+          NEXT_PUBLIC_API_BASE_URL: https://api.gitdiscover.org/v1
+
+      - name: Build for Cloudflare Pages
+        run: npm run pages:build -w @gitdiscover/web
         env:
           NEXT_PUBLIC_APP_URL: https://gitdiscover.org
           NEXT_PUBLIC_API_URL: https://api.gitdiscover.org
@@ -39,4 +45,4 @@ jobs:
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          command: pages deploy apps/web/.next --project-name=gitdiscover-web --branch=main
+          command: pages deploy apps/web/.vercel/output/static --project-name=gitdiscover-web --branch=main
